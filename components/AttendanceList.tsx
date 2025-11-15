@@ -1,22 +1,84 @@
-import React from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { Signature } from '../types';
 
+type SortKey = keyof Signature;
+
+const SortableHeader: React.FC<{
+  label: string;
+  sortKey: SortKey;
+  sortConfig: { key: SortKey; direction: 'ascending' | 'descending' };
+  requestSort: (key: SortKey) => void;
+  className?: string;
+}> = ({ label, sortKey, sortConfig, requestSort, className }) => {
+  const isSorted = sortConfig.key === sortKey;
+  const icon = isSorted ? (sortConfig.direction === 'ascending' ? '▲' : '▼') : '';
+  return (
+    <th
+      scope="col"
+      className={`px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer ${className}`}
+      onClick={() => requestSort(sortKey)}
+      aria-sort={isSorted ? (sortConfig.direction === 'ascending' ? 'ascending' : 'descending') : 'none'}
+    >
+      <span className="flex items-center">
+        {label}
+        <span className="ml-2 text-slate-400 w-4">{icon}</span>
+      </span>
+    </th>
+  );
+};
+
+// FIX: Defined AttendanceListProps interface to resolve TypeScript error.
 interface AttendanceListProps {
   signatures: Signature[];
   isAdmin: boolean;
 }
 
 const AttendanceList: React.FC<AttendanceListProps> = ({ signatures, isAdmin }) => {
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' }>({ key: 'lastName', direction: 'ascending' });
+
+  const sortedSignatures = useMemo(() => {
+      let sortableItems = [...signatures];
+      sortableItems.sort((a, b) => {
+          const aValue = a[sortConfig.key];
+          const bValue = b[sortConfig.key];
+
+          if (aValue < bValue) {
+              return sortConfig.direction === 'ascending' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+              return sortConfig.direction === 'ascending' ? 1 : -1;
+          }
+          // Secondary sort for names
+          if (sortConfig.key === 'lastName') {
+              return a.firstName.localeCompare(b.firstName);
+          }
+           if (sortConfig.key === 'firstName') {
+              return a.lastName.localeCompare(b.lastName);
+          }
+          return 0;
+      });
+      return sortableItems;
+  }, [signatures, sortConfig]);
+
+  const requestSort = (key: SortKey) => {
+      let direction: 'ascending' | 'descending' = 'ascending';
+      if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+          direction = 'descending';
+      }
+      setSortConfig({ key, direction });
+  };
 
   const exportToCSV = () => {
-    if (signatures.length === 0) {
+    if (sortedSignatures.length === 0) {
         alert("Nessuna firma da esportare.");
         return;
     }
 
-    const headers = ['Nome e Cognome', 'Email', 'Data e Ora della Firma'];
-    const rows = signatures.map(sig => [
-      `"${sig.name.replace(/"/g, '""')}"`,
+    const headers = ['Cognome', 'Nome', 'Email', 'Data e Ora della Firma'];
+    const rows = sortedSignatures.map(sig => [
+      `"${sig.lastName.replace(/"/g, '""')}"`,
+      `"${sig.firstName.replace(/"/g, '""')}"`,
       `"${sig.email.replace(/"/g, '""')}"`,
       `"${sig.timestamp}"`
     ]);
@@ -59,29 +121,27 @@ const AttendanceList: React.FC<AttendanceListProps> = ({ signatures, isAdmin }) 
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Nome e Cognome
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Data e Ora
-                  </th>
+                  <SortableHeader label="Cognome" sortKey="lastName" sortConfig={sortConfig} requestSort={requestSort} />
+                  <SortableHeader label="Nome" sortKey="firstName" sortConfig={sortConfig} requestSort={requestSort} />
+                  <SortableHeader label="Email" sortKey="email" sortConfig={sortConfig} requestSort={requestSort} />
+                  <SortableHeader label="Data e Ora" sortKey="timestamp" sortConfig={sortConfig} requestSort={requestSort} />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {signatures.length === 0 ? (
+                {sortedSignatures.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">
+                    <td colSpan={4} className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">
                       Nessun docente ha ancora firmato.
                     </td>
                   </tr>
                 ) : (
-                  signatures.map((signature, index) => (
-                    <tr key={index} className="hover:bg-slate-50">
+                  sortedSignatures.map((signature) => (
+                    <tr key={signature.email} className="hover:bg-slate-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                        {signature.name}
+                        {signature.lastName}
+                      </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">
+                        {signature.firstName}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                         {signature.email}

@@ -1,6 +1,7 @@
 
 export interface Signature {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   timestamp: string;
 }

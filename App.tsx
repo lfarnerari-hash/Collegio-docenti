@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import SignatureForm from './components/SignatureForm';
@@ -9,7 +10,8 @@ const SIGNATURES_STORAGE_KEY = 'collegio-docenti-signatures';
 
 const App: React.FC = () => {
   const [signatures, setSignatures] = useState<Signature[]>([]);
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -22,7 +24,23 @@ const App: React.FC = () => {
     try {
       const storedSignatures = localStorage.getItem(SIGNATURES_STORAGE_KEY);
       if (storedSignatures) {
-        setSignatures(JSON.parse(storedSignatures));
+        const parsedSignatures = JSON.parse(storedSignatures);
+        // Data migration for old format (single 'name' field)
+        const migratedSignatures = parsedSignatures.map((sig: any): Signature => {
+            if (typeof sig.name === 'string' && sig.lastName === undefined) {
+                const lastSpaceIndex = sig.name.trim().lastIndexOf(' ');
+                if (lastSpaceIndex === -1) {
+                    // Only one word, treat as last name
+                    return { lastName: sig.name.trim(), firstName: '', email: sig.email, timestamp: sig.timestamp };
+                } else {
+                    const sigFirstName = sig.name.substring(0, lastSpaceIndex).trim();
+                    const sigLastName = sig.name.substring(lastSpaceIndex + 1).trim();
+                    return { firstName: sigFirstName, lastName: sigLastName, email: sig.email, timestamp: sig.timestamp };
+                }
+            }
+            return sig;
+        });
+        setSignatures(migratedSignatures);
       }
       const params = new URLSearchParams(window.location.search);
       if (params.get('admin') === 'true') {
@@ -65,10 +83,20 @@ const App: React.FC = () => {
     setError(null);
     setSuccess(null);
 
-    if (!name.trim()) {
-      setError("Il campo 'Nome e Cognome' è obbligatorio.");
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+
+    if (!trimmedFirstName || !trimmedLastName) {
+      setError("I campi 'Nome' e 'Cognome' sono obbligatori.");
       return;
     }
+    
+    const nameRegex = /^[a-zA-Z\sÀ-ÖØ-öø-ÿ']+$/;
+    if (!nameRegex.test(trimmedFirstName) || !nameRegex.test(trimmedLastName)) {
+      setError("I campi 'Nome' e 'Cognome' possono contenere solo lettere, spazi e apostrofi.");
+      return;
+    }
+
 
     if (!email.trim()) {
       setError("Il campo 'Indirizzo Email' è obbligatorio.");
@@ -81,8 +109,9 @@ const App: React.FC = () => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    if (signatures.some(sig => sig.email.toLowerCase() === normalizedEmail)) {
-      setError("Questo indirizzo email è già stato utilizzato per firmare.");
+    const existingSignature = signatures.find(sig => sig.email.toLowerCase() === normalizedEmail);
+    if (existingSignature) {
+      setError(`Questo indirizzo email risulta già utilizzato da ${existingSignature.lastName} ${existingSignature.firstName} in data ${existingSignature.timestamp}. Ogni docente può firmare una sola volta.`);
       return;
     }
 
@@ -91,7 +120,8 @@ const App: React.FC = () => {
     // Simulate network delay
     setTimeout(() => {
       const newSignature: Signature = {
-        name: name.trim(),
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
         email: normalizedEmail,
         timestamp: new Date().toLocaleString('it-IT', { 
             dateStyle: 'short', 
@@ -99,14 +129,15 @@ const App: React.FC = () => {
         }),
       };
 
-      setSignatures(prevSignatures => [...prevSignatures, newSignature].sort((a,b) => a.name.localeCompare(b.name)));
-      setName('');
+      setSignatures(prevSignatures => [...prevSignatures, newSignature].sort((a,b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)));
+      setFirstName('');
+      setLastName('');
       setEmail('');
-      setSuccess(`Grazie, ${newSignature.name}. La tua presenza è stata registrata con successo.`);
+      setSuccess(`Grazie, ${newSignature.firstName} ${newSignature.lastName}. La tua presenza è stata registrata con successo.`);
       setIsLoading(false);
     }, 500);
 
-  }, [name, email, signatures]);
+  }, [firstName, lastName, email, signatures]);
   
 
   return (
@@ -115,8 +146,10 @@ const App: React.FC = () => {
       <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="space-y-8">
           <SignatureForm 
-            name={name}
-            setName={setName}
+            firstName={firstName}
+            setFirstName={setFirstName}
+            lastName={lastName}
+            setLastName={setLastName}
             email={email}
             setEmail={setEmail}
             handleSubmit={handleAddSignature}
