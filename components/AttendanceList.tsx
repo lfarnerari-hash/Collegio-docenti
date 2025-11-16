@@ -28,13 +28,14 @@ const SortableHeader: React.FC<{
   );
 };
 
-// FIX: Defined AttendanceListProps interface to resolve TypeScript error.
 interface AttendanceListProps {
   signatures: Signature[];
   isAdmin: boolean;
+  isLoading: boolean;
+  onResetSignatures: () => void;
 }
 
-const AttendanceList: React.FC<AttendanceListProps> = ({ signatures, isAdmin }) => {
+const AttendanceList: React.FC<AttendanceListProps> = ({ signatures, isAdmin, isLoading, onResetSignatures }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' }>({ key: 'lastName', direction: 'ascending' });
 
   const sortedSignatures = useMemo(() => {
@@ -99,20 +100,33 @@ const AttendanceList: React.FC<AttendanceListProps> = ({ signatures, isAdmin }) 
 
   return (
     <div className="bg-white p-8 rounded-lg shadow-lg">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-slate-800">Elenco Presenti ({signatures.length})</h2>
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <h2 className="text-2xl font-semibold text-slate-800">Elenco Presenti ({isLoading ? '...' : signatures.length})</h2>
         {isAdmin && (
-          <button
-            onClick={exportToCSV}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-300"
-            disabled={signatures.length === 0}
-            aria-label="Esporta elenco presenze in formato CSV"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-            Esporta Risultati (CSV)
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={exportToCSV}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-300"
+              disabled={signatures.length === 0 || isLoading}
+              aria-label="Esporta elenco presenze in formato CSV"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Esporta (CSV)
+            </button>
+             <button
+              onClick={onResetSignatures}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-red-300"
+              disabled={signatures.length === 0 || isLoading}
+              aria-label="Resetta tutte le firme. Attenzione: azione irreversibile."
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+              </svg>
+              Reset Firme
+            </button>
+          </div>
         )}
       </div>
       <div className="overflow-x-auto">
@@ -128,7 +142,13 @@ const AttendanceList: React.FC<AttendanceListProps> = ({ signatures, isAdmin }) 
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {sortedSignatures.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 whitespace-nowrap text-sm text-slate-500 text-center">
+                      Caricamento firme in corso...
+                    </td>
+                  </tr>
+                ) : sortedSignatures.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">
                       Nessun docente ha ancora firmato.
